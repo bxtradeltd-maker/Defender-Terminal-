@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Defender — Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0d12;
+    --bg-vignette: radial-gradient(1200px 500px at 50% -80px, #131a24 0%, #0a0d12 60%);
+    --panel:#10141c;
+    --panel-alt:#141a24;
+    --hair:#232c3a;
+    --hair-soft:#1a2130;
+    --text:#e4e9f2;
+    --muted:#66728a;
+    --muted-dim:#48526650;
+    --brass:#c99a54;
+    --brass-dim:#c99a5433;
+    --buy:#4fd1ae;
+    --buy-dim:#4fd1ae1f;
+    --sell:#e8646b;
+    --sell-dim:#e8646b1f;
+    --warn:#e0b054;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:14px 14px 40px;
+    background: var(--bg-vignette);
+    color:var(--text);
+    font-family:'Inter',-apple-system,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:0.68em; letter-spacing:0.14em; text-transform:uppercase;
+    color:var(--muted);
+  }
+  h1{
+    font-family:'Barlow Condensed',sans-serif;
+    font-weight:700; font-size:1.9em; letter-spacing:0.02em;
+    margin:2px 0 0; text-transform:uppercase;
+  }
+  h1 .mark{ color:var(--brass); }
+  .topbar{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    padding-bottom:12px; margin-bottom:14px; border-bottom:1px solid var(--hair);
+  }
+  .pulse-dot{
+    width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:6px;
+    background:var(--muted); position:relative; top:-1px;
+  }
+  .pulse-dot.on{ background:var(--buy); box-shadow:0 0 0 0 var(--buy-dim); animation:pulse 2s infinite; }
+  .pulse-dot.warn{ background:var(--warn); }
+  .pulse-dot.off{ background:var(--sell); }
+  @keyframes pulse{
+    0%{ box-shadow:0 0 0 0 rgba(79,209,174,0.45); }
+    70%{ box-shadow:0 0 0 8px rgba(79,209,174,0); }
+    100%{ box-shadow:0 0 0 0 rgba(79,209,174,0); }
+  }
+
+  /* HUD panel — corner-bracket signature */
+  .panel{
+    position:relative;
+    background:var(--panel);
+    border:1px solid var(--hair);
+    border-radius:3px;
+    padding:16px 16px 14px;
+    margin-bottom:12px;
+  }
+  .panel::before, .panel::after,
+  .panel .bl::before, .panel .br::before{
+    content:''; position:absolute; width:9px; height:9px;
+    border-color:var(--brass); opacity:0.9;
+  }
+  .panel::before{ top:-1px; left:-1px; border-top:2px solid var(--brass); border-left:2px solid var(--brass); }
+  .panel::after{ top:-1px; right:-1px; border-top:2px solid var(--brass); border-right:2px solid var(--brass); }
+  .panel .bl{ position:absolute; bottom:-1px; left:-1px; width:9px; height:9px; border-bottom:2px solid var(--brass); border-left:2px solid var(--brass); }
+  .panel .br{ position:absolute; bottom:-1px; right:-1px; width:9px; height:9px; border-bottom:2px solid var(--brass); border-right:2px solid var(--brass); }
+
+  .panel-title{
+    font-family:'Barlow Condensed',sans-serif; font-weight:600;
+    font-size:0.78em; letter-spacing:0.13em; text-transform:uppercase;
+    color:var(--brass); margin-bottom:10px; display:flex; align-items:center; gap:8px;
+  }
+  .panel-title::after{ content:''; flex:1; height:1px; background:var(--hair); }
+
+  .label{ color:var(--muted); font-size:0.75em; margin:2px 0; }
+  .mono{ font-family:'IBM Plex Mono',monospace; font-variant-numeric:tabular-nums; }
+  .value{ font-size:1.05em; font-weight:600; }
+  .big-readout{
+    font-family:'Barlow Condensed',sans-serif; font-weight:700;
+    font-size:2.1em; letter-spacing:0.01em; line-height:1;
+  }
+  .running{ color:var(--buy); } .stopped{ color:var(--sell); } .dry{ color:var(--warn); }
+
+  input, select{
+    background:var(--panel-alt); color:var(--text); border:1px solid var(--hair);
+    border-radius:4px; padding:9px 10px; margin:4px 6px 4px 0; font-size:0.9em;
+    font-family:'IBM Plex Mono',monospace;
+  }
+  input:focus, select:focus, button:focus{ outline:2px solid var(--brass); outline-offset:1px; }
+  #apiBaseRow input{ width:100%; max-width:440px; }
+  .row{ display:flex; flex-wrap:wrap; align-items:center; gap:2px; }
+  .field{ display:flex; flex-direction:column; margin-right:8px; margin-bottom:6px; }
+  .field label{ font-size:0.68em; letter-spacing:0.06em; text-transform:uppercase; color:var(--muted); margin-bottom:3px; }
+  .field input, .field select{ margin:0; width:96px; }
+  .field.wide input, .field.wide select{ width:150px; }
+
+  button{
+    background:var(--panel-alt); color:var(--text); border:1px solid var(--hair);
+    padding:10px 18px; border-radius:4px; font-family:'Barlow Condensed',sans-serif;
+    font-weight:600; letter-spacing:0.08em; text-transform:uppercase; font-size:0.85em;
+    margin-right:8px; margin-top:6px; cursor:pointer;
+  }
+  button:disabled{ opacity:0.4; cursor:default; }
+  button.primary{ background:var(--brass); color:#1a1305; border-color:var(--brass); }
+  button.stop{ background:var(--sell-dim); color:var(--sell); border-color:var(--sell); }
+  button.start{ background:var(--buy-dim); color:var(--buy); border-color:var(--buy); }
+
+  /* Buy/Sell segmented toggle */
+  .segmented{ display:flex; border:1px solid var(--hair); border-radius:4px; overflow:hidden; width:fit-content; margin:4px 0 8px; }
+  .segmented button{
+    margin:0; border:none; border-radius:0; background:var(--panel-alt);
+    padding:9px 22px; font-size:0.85em;
+  }
+  .segmented button.buy.active{ background:var(--buy); color:#06231b; }
+  .segmented button.sell.active{ background:var(--sell); color:#2a0709; }
+
+  pre{
+    background:#080a0f; padding:10px; border-radius:4px; overflow-x:auto;
+    font-size:0.74em; max-height:260px; white-space:pre-wrap; word-break:break-word;
+    font-family:'IBM Plex Mono',monospace; color:#9fb0c9; border:1px solid var(--hair-soft);
+  }
+  table{ width:100%; border-collapse:collapse; font-size:0.85em; margin-top:8px; font-family:'IBM Plex Mono',monospace; }
+  td, th{ padding:5px 6px; text-align:left; border-bottom:1px solid var(--hair); }
+  th{ color:var(--muted); font-weight:500; font-size:0.75em; text-transform:uppercase; letter-spacing:0.05em; }
+  svg{ width:100%; height:110px; background:#080a0f; border-radius:4px; margin-top:8px; border:1px solid var(--hair-soft); }
+  .ok{ color:var(--buy); } .bad{ color:var(--sell); }
+  .ticket-result{ margin-top:10px; font-size:0.85em; }
+  .divider-tick{ display:flex; align-items:center; gap:6px; margin:10px 0; color:var(--muted-dim); font-size:0.7em; letter-spacing:0.2em; }
+  .divider-tick::before, .divider-tick::after{ content:''; flex:1; height:1px; background:var(--hair-soft); }
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div>
+      <div class="eyebrow">Manual &amp; Auto Execution Console</div>
+      <h1><span class="mark">🛡</span> THE DEFENDER</h1>
+    </div>
+    <div style="text-align:right;">
+      <div class="eyebrow" id="connStatus"><span class="pulse-dot off"></span>OFFLINE</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="bl"></div><div class="br"></div>
+    <div class="panel-title">Backend Link</div>
+    <div class="row" id="apiBaseRow">
+      <input id="apiBase" placeholder="https://your-app.up.railway.app">
+      <button onclick="saveApiBase()">Connect</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="bl"></div><div class="br"></div>
+    <div class="panel-title">Bot Status</div>
+    <div id="status">
+      <div class="label mono">Awaiting connection…</div>
+    </div>
+    <div class="row">
+      <button class="start" onclick="startBot()">▶ Start</button>
+      <button class="stop" onclick="stopBot()">■ Stop</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="bl"></div><div class="br"></div>
+    <div class="panel-title">Manual Order Ticket</div>
+
+    <div class="field wide">
+      <label>Symbol</label>
+      <select id="mt_symbol"></select>
+    </div>
+
+    <div class="segmented" id="mt_direction">
+      <button type="button" class="buy active" onclick="setDirection('CALL')">Rise</button>
+      <button type="button" class="sell" onclick="setDirection('PUT')">Fall</button>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Stake</label>
+        <input id="mt_stake" type="number" value="1" min="0.35" step="0.01">
+      </div>
+      <div class="field">
+        <label>Duration</label>
+        <input id="mt_duration" type="number" value="5" min="1">
+      </div>
+      <div class="field">
+        <label>Unit</label>
+        <select id="mt_unit">
+          <option value="t" selected>Ticks</option>
+          <option value="s">Seconds</option>
+          <option value="m">Minutes</option>
+        </select>
+      </div>
+    </div>
+
+    <button class="primary" onclick="placeManualTrade()" id="mtBtn">Place Trade</button>
+    <div id="mt_result" class="ticket-result mono"></div>
+  </div>
+
+  <div class="panel">
+    <div class="bl"></div><div class="br"></div>
+    <div class="panel-title">Backtest</div>
+    <div class="row">
+      <div class="field">
+        <label>Symbol</label>
+        <input id="bt_symbol" value="R_75">
+      </div>
+      <div class="field">
+        <label>Granularity</label>
+        <select id="bt_gran">
+          <option value="60" selected>1m</option>
+          <option value="120">2m</option>
+          <option value="300">5m</option>
+          <option value="900">15m</option>
+        </select>
+      </div>
+      <div class="field wide">
+        <label>Strategy</label>
+        <select id="bt_strategy">
+          <option value="confluence" selected>Confluence (RSI/MACD/BB/ATR)</option>
+          <option value="rsi_sma_scalper">RSI(2)/SMA(3) scalper</option>
+          <option value="ema_cross">EMA 9/21 Cross + ADX</option>
+          <option value="stochastic_bb">Stochastic + BB reversion</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Candles</label>
+        <input id="bt_count" type="number" value="3000">
+      </div>
+      <div class="field">
+        <label>Min Confl.</label>
+        <input id="bt_conf" type="number" value="3" min="1" max="4">
+      </div>
+    </div>
+    <button onclick="runBacktest()" id="btBtn">Run Backtest</button>
+    <div id="bt_results"></div>
+  </div>
+
+  <div class="panel">
+    <div class="bl"></div><div class="br"></div>
+    <div class="panel-title">Log Stream</div>
+    <pre id="logs">—</pre>
+  </div>
+
+<script>
+  let apiBase = localStorage.getItem('defender_api_base') || '';
+  let mtDirection = 'CALL';
+  document.getElementById('apiBase').value = apiBase;
+
+  const FALLBACK_SYMBOLS = [
+    { value:'R_10', label:'Volatility 10' },
+    { value:'R_25', label:'Volatility 25' },
+    { value:'R_50', label:'Volatility 50' },
+    { value:'R_75', label:'Volatility 75' },
+    { value:'R_100', label:'Volatility 100' },
+    { value:'1HZ100V', label:'Volatility 100 (1s)' },
+    { value:'frxEURUSD', label:'EUR/USD' },
+    { value:'frxGBPUSD', label:'GBP/USD' },
+    { value:'frxUSDJPY', label:'USD/JPY' },
+    { value:'frxAUDUSD', label:'AUD/USD' },
+  ];
+
+  function populateSymbols(list) {
+    const sel = document.getElementById('mt_symbol');
+    sel.innerHTML = list.map(s => `<option value="${s.value}">${s.label}</option>`).join('');
+  }
+  populateSymbols(FALLBACK_SYMBOLS);
+
+  function setDirection(dir) {
+    mtDirection = dir;
+    const group = document.getElementById('mt_direction');
+    group.querySelector('.buy').classList.toggle('active', dir === 'CALL');
+    group.querySelector('.sell').classList.toggle('active', dir === 'PUT');
+  }
+
+  function saveApiBase() {
+    apiBase = document.getElementById('apiBase').value.trim().replace(/\/$/, '');
+    localStorage.setItem('defender_api_base', apiBase);
+    loadSymbols();
+    refresh();
+  }
+
+  function api(path) { return apiBase + path; }
+
+  async function loadSymbols() {
+    if (!apiBase) return;
+    try {
+      const r = await fetch(api('/api/symbols'));
+      const d = await r.json();
+      if (Array.isArray(d.symbols) && d.symbols.length) {
+        populateSymbols(d.symbols.map(s => typeof s === 'string' ? { value:s, label:s } : s));
+      }
+    } catch (e) { /* keep fallback list */ }
+  }
+
+  async function refresh() {
+    if (!apiBase) return;
+    const connEl = document.getElementById('connStatus');
+    try {
+      const s = await (await fetch(api('/api/status'))).json();
+      const l = await (await fetch(api('/api/logs'))).json();
+      connEl.innerHTML = '<span class="pulse-dot on"></span>LINKED';
+      const modeDot = s.live_trading ? '<span class="pulse-dot on"></span>LIVE' : '<span class="pulse-dot warn"></span>DRY RUN';
+      document.getElementById('status').innerHTML = `
+        <div class="big-readout ${s.running ? 'running' : 'stopped'}">${s.status}</div>
+        <div class="label mono">Symbol ${s.symbol} · ${modeDot} · ${s.trade_mode.toUpperCase()}</div>
+        <div class="label mono">Stake ${s.stake} · Min confluence ${s.min_confluence}/4 · Trades ${s.trade_count} · Open ${s.open_positions}</div>
+        <div class="label mono">Candles ${s.candles_loaded} · Balance ${s.balance ?? 'n/a'}</div>
+        <div class="label mono">Max hold ${s.max_hold_hours}h · Last signal ${s.last_signal ? JSON.stringify(s.last_signal) : 'none yet'}</div>
+      `;
+      document.getElementById('logs').textContent = l.logs.slice().reverse().join('\n');
+    } catch (e) {
+      connEl.innerHTML = '<span class="pulse-dot off"></span>NO LINK';
+    }
+  }
+  refresh();
+  loadSymbols();
+  setInterval(refresh, 5000);
+
+  async function startBot() {
+    if (!apiBase) return alert('Set backend URL first');
+    await fetch(api('/api/start'), { method: 'POST' });
+    refresh();
+  }
+  async function stopBot() {
+    if (!apiBase) return alert('Set backend URL first');
+    await fetch(api('/api/stop'), { method: 'POST' });
+    refresh();
+  }
+
+  async function placeManualTrade() {
+    if (!apiBase) return alert('Set backend URL first');
+    const btn = document.getElementById('mtBtn');
+    const out = document.getElementById('mt_result');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+    out.innerHTML = '';
+    try {
+      const body = {
+        symbol: document.getElementById('mt_symbol').value,
+        contract_type: mtDirection,
+        stake: parseFloat(document.getElementById('mt_stake').value),
+        duration: parseInt(document.getElementById('mt_duration').value, 10),
+        duration_unit: document.getElementById('mt_unit').value,
+      };
+      const r = await fetch(api('/api/manual_trade'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (d.error) {
+        out.innerHTML = `<span class="bad">Error: ${d.error}</span>`;
+      } else {
+        out.innerHTML = `<span class="ok">Sent</span> — contract ${d.contract_id ?? 'n/a'} · entry ${d.entry_spot ?? 'n/a'} · payout ${d.payout ?? 'n/a'}`;
+      }
+      refresh();
+    } catch (e) {
+      out.innerHTML = `<span class="bad">Failed: ${e}</span>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Place Trade';
+    }
+  }
+
+  function drawEquityCurve(curve) {
+    if (!curve || curve.length < 2) return '';
+    const w = 600, h = 110, pad = 4;
+    const min = Math.min(...curve), max = Math.max(...curve);
+    const range = (max - min) || 1;
+    const pts = curve.map((v, i) => {
+      const x = pad + (i / (curve.length - 1)) * (w - 2 * pad);
+      const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const color = curve[curve.length - 1] >= curve[0] ? '#4fd1ae' : '#e8646b';
+    return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>
+    </svg>`;
+  }
+
+  async function runBacktest() {
+    if (!apiBase) return alert('Set backend URL first');
+    const btn = document.getElementById('btBtn');
+    const out = document.getElementById('bt_results');
+    btn.disabled = true;
+    btn.textContent = 'Running… (30–60s)';
+    out.innerHTML = '';
+    try {
+      const params = new URLSearchParams({
+        symbol: document.getElementById('bt_symbol').value,
+        granularity: document.getElementById('bt_gran').value,
+        strategy: document.getElementById('bt_strategy').value,
+        count: document.getElementById('bt_count').value,
+        min_confluence: document.getElementById('bt_conf').value,
+      });
+      const r = await fetch(api('/api/backtest?' + params.toString()));
+      const data = await r.json();
+      if (data.error) {
+        out.innerHTML = `<div class="label bad">Error: ${data.error}</div>`;
+        return;
+      }
+      out.innerHTML = `
+        <div class="divider-tick">RESULTS</div>
+        <table>
+          <tr><th>Total trades</th><td>${data.total_trades}</td></tr>
+          <tr><th>Win rate</th><td>${data.win_rate_pct}%</td></tr>
+          <tr><th>Wins / Losses</th><td>${data.wins} / ${data.losses}</td></tr>
+          <tr><th>Net P&L</th><td>${data.net_pnl}</td></tr>
+          <tr><th>Max drawdown</th><td>${data.max_drawdown}</td></tr>
+        </table>
+        ${drawEquityCurve(data.equity_curve)}
+      `;
+    } catch (e) {
+      out.innerHTML = `<div class="label bad">Failed: ${e}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Run Backtest';
+    }
+  }
+</script>
+</body>
+</html>
