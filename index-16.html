@@ -1,0 +1,1447 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Defender</title>
+
+<!-- PWA: installable home-screen app -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#07090C">
+<meta name="background-color" content="#07090C">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- iOS-specific: Safari ignores the manifest for "Add to Home Screen" and
+     needs these instead to open full-screen without browser chrome. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Defender">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --void: #07090C;
+    --steel: #12151B;
+    --steel-hi: #1B160F;
+    --ledger: #2A2318;
+    --gold: #C9A227;
+    --gold-bright: #E8C766;
+    --gold-dim: #362B10;
+    --signal: #2FAE72;
+    --signal-dim: #163826;
+    --alarm: #E14B3C;
+    --alarm-dim: #3A1E19;
+    --amber: #E2A33D;
+    --amber-dim: #3A2C14;
+    --ice: #EDE7D8;
+    --slate: #8D8570;
+    --slate-dim: #352E20;
+    --panel-raised: #181C24;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: 'Inter', -apple-system, system-ui, sans-serif;
+    background:
+      radial-gradient(ellipse 900px 500px at 50% -10%, rgba(201,162,39,0.09), transparent 60%),
+      radial-gradient(ellipse 700px 400px at 100% 0%, rgba(47,174,114,0.05), transparent 55%),
+      var(--void);
+    background-attachment: fixed;
+    color: var(--ice);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+  }
+  /* fine paper-grain overlay - vault-ledger texture, restrained */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    opacity: 0.035; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+  .hdr, .wrap, .navbar { position: relative; z-index: 1; }
+  .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+  .display { font-family: 'Fraunces', Georgia, serif; font-optical-sizing: auto; }
+
+  a, button, select, input { font-family: inherit; }
+  button:focus-visible, select:focus-visible, input:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 2px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+  }
+
+  /* ---------- Header + signature pulse ---------- */
+  .hdr {
+    padding: 18px 16px 0 16px;
+    background: linear-gradient(180deg, var(--steel-hi) 0%, var(--void) 100%);
+    border-bottom: 1px solid var(--ledger);
+  }
+  .hdr-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { width: 30px; height: 30px; flex-shrink: 0; }
+  .brand-text { display: flex; flex-direction: column; gap: 1px; }
+  .brand-name { font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 1.22em; letter-spacing: 0.01em; color: var(--gold-bright); text-shadow: 0 0 16px rgba(201,162,39,0.28); line-height: 1; }
+  .brand-sub { font-family: 'IBM Plex Mono', monospace; font-size: 0.6em; letter-spacing: 0.16em; text-transform: uppercase; color: var(--slate); }
+  .status-pill {
+    display: flex; align-items: center; gap: 6px;
+    padding: 5px 11px; border-radius: 20px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.72em; font-weight: 600;
+    letter-spacing: 0.04em; text-transform: uppercase;
+    border: 1px solid var(--ledger); background: var(--steel);
+  }
+  .status-pill.on { color: var(--gold-bright); border-color: var(--gold-dim); background: rgba(212,175,55,0.1); box-shadow: 0 0 12px -3px rgba(201,162,39,0.5); }
+  .status-pill.off { color: var(--slate); }
+  .status-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .status-pill.on .dot { animation: blink 1.6s ease-in-out infinite; }
+  @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+  .pulse-wrap {
+    height: 38px; margin: 0 -16px; overflow: hidden; position: relative;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  }
+  .pulse-wrap svg { width: 200%; height: 100%; display: block; }
+  .candle-track { animation: scroll-left 22s linear infinite; }
+  .pulse-wrap.stopped .candle-track { animation-play-state: paused; }
+  .candle-wick { stroke: var(--slate); stroke-width: 1; opacity: 0.85; }
+  .candle-body { opacity: 0.9; }
+  .candle-body.up { fill: var(--signal); }
+  .candle-body.down { fill: var(--alarm); }
+  .pulse-wrap.stopped .candle-body { fill: var(--slate-dim) !important; }
+  .pulse-wrap.stopped .candle-wick { stroke: var(--slate-dim); }
+  .pulse-baseline { stroke: var(--ledger); stroke-width: 1; }
+  @keyframes scroll-left { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+  /* ---------- Layout ---------- */
+  .wrap { padding: 16px; padding-bottom: 96px; max-width: 560px; margin: 0 auto; }
+  .card {
+    background: linear-gradient(180deg, var(--panel-raised) 0%, var(--steel) 14%);
+    border: 1px solid var(--ledger);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 8px 20px -12px rgba(0,0,0,0.5);
+    position: relative;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .card:hover { border-color: #3A3120; }
+  .card-accent {
+    border-top: 2px solid var(--gold);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 10px 26px -14px rgba(201,162,39,0.28), 0 8px 20px -12px rgba(0,0,0,0.5);
+  }
+  /* brass corner ticks - a small vault-plate detail reserved for the primary engine card */
+  .card-accent::before, .card-accent::after {
+    content: ''; position: absolute; top: 8px; width: 7px; height: 7px;
+    border-top: 1.5px solid var(--gold); opacity: 0.55;
+  }
+  .card-accent::before { left: 8px; border-left: 1.5px solid var(--gold); }
+  .card-accent::after { right: 8px; border-right: 1.5px solid var(--gold); }
+  .eyebrow {
+    display: flex; align-items: center; gap: 7px;
+    font-family: 'IBM Plex Mono', monospace; font-size: 0.68em; font-weight: 600;
+    letter-spacing: 0.09em; text-transform: uppercase; color: var(--gold);
+    opacity: 0.85;
+    margin: 0 0 10px 0;
+  }
+  .eyebrow::before { content: ''; display: block; width: 3px; height: 12px; background: var(--gold); opacity: 0.55; border-radius: 1px; flex-shrink: 0; }
+  .stat-row { display: flex; justify-content: space-between; align-items: baseline; padding: 7px 0; border-bottom: 1px solid var(--ledger); }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: var(--slate); font-size: 0.82em; }
+  .stat-value { font-family: 'IBM Plex Mono', monospace; font-weight: 500; font-size: 0.92em; }
+  .stat-value.big { font-family: 'Fraunces', Georgia, serif; font-size: 1.35em; font-weight: 600; }
+  .stat-value.live { color: var(--signal); }
+  .stat-value.dry { color: var(--amber); }
+
+  #accuracyArc { filter: drop-shadow(0 0 4px rgba(201,162,39,0.5)); }
+  #accuracyNeedle, #accuracyNeedleGroup circle { filter: drop-shadow(0 0 3px rgba(232,199,102,0.6)); }
+
+  pre.logs {
+    background: var(--void); border: 1px solid var(--ledger); border-radius: 10px;
+    padding: 12px; overflow-x: auto; font-size: 0.72em; max-height: 260px;
+    white-space: pre-wrap; word-break: break-word; color: var(--slate);
+    font-family: 'IBM Plex Mono', monospace; line-height: 1.6; margin: 0;
+  }
+
+  button {
+    background: var(--slate-dim); color: var(--ice); border: none;
+    padding: 13px 16px; border-radius: 10px; font-size: 0.92em; font-weight: 600;
+    cursor: pointer; transition: transform 0.08s ease, opacity 0.15s ease, filter 0.15s ease, box-shadow 0.15s ease;
+    letter-spacing: 0.01em;
+  }
+  button:active { transform: scale(0.97); }
+  button:disabled { opacity: 0.4; }
+  button.primary { background: linear-gradient(180deg, var(--gold-bright) 0%, var(--gold) 100%); color: #1A1508; box-shadow: 0 4px 14px -6px rgba(201,162,39,0.45); }
+  button.primary:hover { box-shadow: 0 6px 18px -6px rgba(201,162,39,0.6); filter: brightness(1.03); }
+  button.primary:active { filter: brightness(0.95); transform: scale(0.97); }
+  button.stop { background: transparent; color: var(--alarm); border: 1px solid var(--alarm); }
+  button.stop:hover { background: rgba(225,75,60,0.08); }
+  button.call { background: linear-gradient(180deg, #3BC384 0%, var(--signal) 100%); color: #052b17; font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 1.05em; box-shadow: 0 4px 14px -6px rgba(47,174,114,0.4); }
+  button.call:hover { box-shadow: 0 6px 18px -6px rgba(47,174,114,0.55); }
+  button.put { background: linear-gradient(180deg, #EA6152 0%, var(--alarm) 100%); color: #2b0a06; font-family: 'Fraunces', Georgia, serif; font-weight: 600; font-size: 1.05em; box-shadow: 0 4px 14px -6px rgba(225,75,60,0.4); }
+  button.put:hover { box-shadow: 0 6px 18px -6px rgba(225,75,60,0.55); }
+  button.ghost { background: transparent; border: 1px solid var(--ledger); color: var(--slate); }
+  button.ghost:hover { border-color: var(--slate-dim); color: var(--ice); }
+  @media (hover: none) { button:hover { box-shadow: revert; filter: none; } }
+
+  input, select {
+    background: var(--void); color: var(--ice); border: 1px solid var(--ledger);
+    border-radius: 9px; padding: 11px 12px; font-size: 0.9em; width: 100%;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+  select { appearance: none; -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2363728A'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 14px center; padding-right: 32px;
+  }
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .field label { font-size: 0.76em; color: var(--slate); font-weight: 500; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row { display: flex; gap: 10px; }
+  .row > * { flex: 1; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.88em; margin-top: 4px; }
+  td { padding: 8px 2px; border-bottom: 1px solid var(--ledger); }
+  td:last-child { text-align: right; font-family: 'IBM Plex Mono', monospace; font-weight: 600; }
+  td.empty-cell { text-align: center !important; padding: 18px 4px !important; color: var(--slate) !important; font-style: italic; font-size: 0.95em; border-bottom: none !important; }
+
+  svg.equity { width: 100%; height: 130px; background: var(--void); border-radius: 10px; margin-top: 10px; border: 1px solid var(--ledger); }
+
+  .feedback { margin-top: 12px; padding: 11px 12px; border-radius: 10px; font-size: 0.85em; font-family: 'IBM Plex Mono', monospace; }
+  .feedback.ok { background: var(--signal-dim); color: var(--signal); }
+  .feedback.bad { background: var(--alarm-dim); color: var(--alarm); }
+  .banner { background: var(--amber-dim); color: var(--amber); padding: 10px 12px; border-radius: 10px; font-size: 0.8em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+
+  /* ---------- Bottom nav ---------- */
+  .navbar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    display: flex; background: var(--steel-hi);
+    border-top: 1px solid var(--ledger);
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)) 8px;
+    z-index: 20;
+  }
+  .navbtn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    background: none; border: none; color: var(--slate); padding: 8px 4px;
+    font-size: 0.68em; font-weight: 600; letter-spacing: 0.02em; border-radius: 10px;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .navbtn svg { width: 20px; height: 20px; }
+  .navbtn.active { color: var(--gold-bright); background: rgba(201,162,39,0.1); }
+
+  .page { display: none; }
+  .page.active { display: block; animation: fade-in 0.2s ease; }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+  .page.active .card {
+    animation: card-rise 0.35s ease backwards;
+  }
+  .page.active .card:nth-of-type(1) { animation-delay: 0.02s; }
+  .page.active .card:nth-of-type(2) { animation-delay: 0.05s; }
+  .page.active .card:nth-of-type(3) { animation-delay: 0.08s; }
+  .page.active .card:nth-of-type(4) { animation-delay: 0.11s; }
+  .page.active .card:nth-of-type(5) { animation-delay: 0.14s; }
+  .page.active .card:nth-of-type(6) { animation-delay: 0.17s; }
+  .page.active .card:nth-of-type(7) { animation-delay: 0.20s; }
+  .page.active .card:nth-of-type(8) { animation-delay: 0.23s; }
+  @keyframes card-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+
+  <div class="hdr">
+    <div class="hdr-top">
+      <div class="brand">
+        <svg viewBox="0 0 32 32" fill="none">
+          <defs>
+            <linearGradient id="shieldFill" x1="0" y1="0" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="var(--gold-bright)" stop-opacity="0.16"/>
+              <stop offset="1" stop-color="var(--gold)" stop-opacity="0.04"/>
+            </linearGradient>
+          </defs>
+          <path d="M16 2 L28 7 V15 C28 23 22.5 28.5 16 30 C9.5 28.5 4 23 4 15 V7 Z" stroke="var(--gold)" stroke-width="1.6" fill="url(#shieldFill)"/>
+          <path d="M16 5.5 L25 9.2 V15 C25 21.3 20.8 25.9 16 27.3 C11.2 25.9 7 21.3 7 15 V9.2 Z" stroke="var(--gold)" stroke-width="0.6" stroke-opacity="0.4" fill="none"/>
+          <path d="M11 15.5 L14.5 19 L21.5 11" stroke="var(--gold-bright)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        </svg>
+        <div class="brand-text">
+          <span class="brand-name">The Defender</span>
+          <span class="brand-sub">Automated Sentinel</span>
+        </div>
+      </div>
+      <div class="status-pill off" id="headerPill"><span class="dot"></span><span id="headerPillText">OFFLINE</span></div>
+    </div>
+    <div class="pulse-wrap stopped" id="pulseWrap">
+      <svg viewBox="0 0 600 38" preserveAspectRatio="none">
+        <line class="pulse-baseline" x1="0" y1="19" x2="1200" y2="19"/>
+        <g class="candle-track" id="candleTrack">
+          <!-- candlestick ticker, duplicated once for a seamless scroll loop -->
+        </g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <div class="card">
+      <div class="eyebrow">Backend connection</div>
+      <div class="field" style="margin-bottom:8px;">
+        <input id="apiBase" placeholder="https://your-app.up.railway.app">
+      </div>
+      <button class="primary" onclick="saveApiBase()" style="width:100%;">Connect</button>
+      <div class="stat-row" style="border:none; padding-top:10px;">
+        <span class="stat-label">Link status</span>
+        <span class="stat-value mono" id="connStatus">Not set</span>
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="page active" id="page-status">
+      <div class="card" style="text-align:center; overflow:hidden;">
+        <div style="position:absolute; top:-40px; left:50%; transform:translateX(-50%); width:220px; height:160px; background:radial-gradient(ellipse, rgba(201,162,39,0.12), transparent 70%); pointer-events:none;"></div>
+        <div class="eyebrow" style="justify-content:center;">Live accuracy</div>
+        <svg id="accuracyGauge" viewBox="-20 -6 240 150" style="width:100%; max-width:280px; height:auto; display:block; margin:0 auto; position:relative;">
+          <!-- static track -->
+          <path d="M14,112 A86,86 0 0 1 186,112" stroke="var(--ledger)" stroke-width="13" fill="none" stroke-linecap="round"/>
+          <!-- static tick marks -->
+          <g stroke="var(--slate)" stroke-opacity="0.55">
+            <line x1="27.00" y1="112.00" x2="6.00" y2="112.00" stroke-width="2"/>
+            <line x1="25.82" y1="87.90" x2="10.60" y2="82.95" stroke-width="1"/>
+            <line x1="36.90" y1="66.15" x2="23.95" y2="56.75" stroke-width="1"/>
+            <line x1="54.15" y1="48.90" x2="44.75" y2="35.95" stroke-width="1"/>
+            <line x1="75.90" y1="37.82" x2="70.95" y2="22.60" stroke-width="1"/>
+            <line x1="100.00" y1="39.00" x2="100.00" y2="18.00" stroke-width="2"/>
+            <line x1="124.10" y1="37.82" x2="129.05" y2="22.60" stroke-width="1"/>
+            <line x1="145.85" y1="48.90" x2="155.25" y2="35.95" stroke-width="1"/>
+            <line x1="163.10" y1="66.15" x2="176.05" y2="56.75" stroke-width="1"/>
+            <line x1="174.18" y1="87.90" x2="189.40" y2="82.95" stroke-width="1"/>
+            <line x1="173.00" y1="112.00" x2="194.00" y2="112.00" stroke-width="2"/>
+          </g>
+          <!-- static tick labels -->
+          <g font-family="IBM Plex Mono, monospace" font-size="9" fill="var(--slate)">
+            <text x="-8" y="116" text-anchor="start">0</text>
+            <text x="100" y="12" text-anchor="middle">50</text>
+            <text x="208" y="116" text-anchor="end">100</text>
+          </g>
+          <!-- dynamic value arc -->
+          <path id="accuracyArc" d="M14,112 A86,86 0 0 1 186,112" stroke="var(--gold)" stroke-width="13" fill="none"
+                stroke-linecap="round" stroke-dasharray="270.18" stroke-dashoffset="270.18"
+                style="transition: stroke-dashoffset 0.6s ease, stroke 0.4s ease;"/>
+          <!-- needle -->
+          <g id="accuracyNeedleGroup" style="transition: transform 0.6s ease;">
+            <line id="accuracyNeedle" x1="100" y1="112" x2="30" y2="112" stroke="var(--gold-bright)" stroke-width="2.5" stroke-linecap="round"/>
+            <circle cx="100" cy="112" r="6" fill="var(--gold-bright)" stroke="var(--void)" stroke-width="1.5"/>
+          </g>
+          <!-- readout -->
+          <text id="accuracyText" x="100" y="103" text-anchor="middle" font-family="Fraunces, Georgia, serif" font-weight="600" font-size="24" fill="var(--ice)">—</text>
+        </svg>
+        <div class="stat-value" id="accuracyDetail" style="font-size:0.82em; color:var(--slate); margin-top:6px;">No settled trades yet</div>
+      </div>
+      <div class="card card-accent">
+        <div class="eyebrow">Engine</div>
+        <div id="status">
+          <div class="stat-row"><span class="stat-label">State</span><span class="stat-value big" id="s_state">—</span></div>
+        </div>
+        <div class="row" style="margin-top:14px;">
+          <button class="primary" onclick="startBot()">Start</button>
+          <button class="stop" onclick="stopBot()">Stop</button>
+        </div>
+        <div id="streakHaltRow" style="display:none; margin-top:10px;">
+          <button class="stop" style="width:100%;" onclick="resumeStreak()">Resume now (clear loss-streak halt)</button>
+        </div>
+        <div id="rollingHaltRow" style="display:none; margin-top:10px;">
+          <button class="stop" style="width:100%;" onclick="resumeRolling()">Resume now (clear rolling win-rate halt)</button>
+        </div>
+        <div class="eyebrow" style="margin-top:16px;">Auto-trade engines (toggle independently)</div>
+        <div class="row" style="margin-top:8px; gap:8px;">
+          <button id="optToggleBtn" class="primary" onclick="toggleMode('options')" style="flex:1;">Options: …</button>
+          <button id="cfdToggleBtn" class="primary" onclick="toggleMode('cfd')" style="flex:1;">CFD: …</button>
+        </div>
+        <div class="stat-label" style="margin-top:6px; font-size:0.75em;">Both ON = every signal fires in both markets at once. One ON = that market only.</div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Live strategy &amp; active pairs</div>
+        <div class="field">
+          <label>Strategy actually trading right now</label>
+          <select id="liveStrategySelect"></select>
+        </div>
+        <div class="stat-label" style="font-size:0.75em; margin-bottom:8px;">Every other strategy keeps shadow-testing in the background (see comparison table below) - switching here just changes which one fires real/dry-run trades.</div>
+        <button class="primary" onclick="applyStrategy()" style="width:100%; margin-bottom:14px;">Apply strategy</button>
+
+        <div class="eyebrow">Tick duration (applies to every strategy)</div>
+        <div class="field">
+          <label>Contract length / resolution window</label>
+          <select id="durationTicksSelect">
+            <option value="1">1 tick</option>
+            <option value="2">2 ticks</option>
+            <option value="3">3 ticks</option>
+            <option value="4">4 ticks</option>
+            <option value="5" selected>5 ticks</option>
+          </select>
+        </div>
+        <div class="stat-label" style="font-size:0.72em; margin-bottom:8px;">One shared setting for live, dry-run, AND shadow trades across every strategy - sets the real options contract length and how many actual ticks a dry-run/shadow entry waits before it's scored. Only affects trades opened after you apply it.</div>
+        <button class="primary" onclick="applyDurationTicks()" style="width:100%; margin-bottom:14px;">Apply tick duration</button>
+        <div id="durationTicksFeedback"></div>
+
+        <div class="eyebrow">Signal strictness</div>
+        <label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:0.88em; cursor:pointer;">
+          <input type="checkbox" id="requireFullConfidence" style="width:auto;">
+          Only fire at 100% confidence
+        </label>
+        <div class="stat-label" style="font-size:0.72em; margin-bottom:8px;">Adaptive Confluence: every regime check must agree. Confluence: all 4 indicators must agree. RSI/SMA, EMA cross, and Stochastic+BB are already all-or-nothing, so this has no effect on them.</div>
+        <div class="field" id="minConfidenceField" style="margin-bottom:8px;">
+          <label>Minimum confidence when not in 100% mode (Adaptive Confluence only)</label>
+          <input id="minConfidenceInput" type="number" value="0.5" min="0" max="1" step="0.05">
+        </div>
+        <button class="primary" onclick="applyConfidenceMode()" style="width:100%; margin-bottom:14px;">Apply strictness</button>
+        <div id="confidenceFeedback"></div>
+
+        <div class="eyebrow">Auto-switch to best strategy</div>
+        <label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:0.88em; cursor:pointer;">
+          <input type="checkbox" id="autoSwitchEnabled" style="width:auto;">
+          Automatically switch live strategy when another one pulls decisively ahead
+        </label>
+        <div class="stat-label" style="font-size:0.72em; margin-bottom:8px;">"Decisively" means the candidate's 95% confidence interval for win rate is entirely above the live strategy's - not just numerically higher today. A strategy needs at least the trade count below before it's even considered, which protects against switching to something that only looks good on a small sample.</div>
+        <div class="field" style="margin-bottom:8px;">
+          <label>Minimum settled trades before a strategy is eligible</label>
+          <input id="autoSwitchMinTrades" type="number" value="300" min="1" step="50">
+        </div>
+        <button class="primary" onclick="applyAutoSwitch()" style="width:100%; margin-bottom:14px;">Apply auto-switch settings</button>
+        <div id="autoSwitchFeedback"></div>
+
+        <div class="eyebrow">Stake sizing mode</div>
+        <div class="field" style="margin-bottom:8px;">
+          <label>How stake per trade is calculated</label>
+          <select id="stakeModeSelect">
+            <option value="flat">Flat (always base stake)</option>
+            <option value="step_on_loss">Step up on loss (capped)</option>
+            <option value="compound_on_win">Compound on win (capped)</option>
+            <option value="kelly">Kelly (fractional, edge-based)</option>
+          </select>
+        </div>
+        <div id="kellyFields">
+          <div class="stat-label" style="font-size:0.72em; margin-bottom:8px;">Sizes each trade off the LIVE strategy's own record, using the statistically conservative (Wilson lower-bound) win rate - not the raw number - so a lucky small sample can't inflate the stake. Falls back to the base stake below the minimum trade count, or if the edge doesn't clear breakeven at all.</div>
+          <div class="field" style="margin-bottom:8px;">
+            <label>Kelly fraction (0.25 = quarter-Kelly, safer than full Kelly)</label>
+            <input id="kellyFractionInput" type="number" value="0.25" min="0.01" max="1" step="0.05">
+          </div>
+          <div class="field" style="margin-bottom:8px;">
+            <label>Hard cap - max % of balance per trade, regardless of the math</label>
+            <input id="kellyMaxStakePctInput" type="number" value="2" min="0.1" max="50" step="0.5">
+          </div>
+          <div class="field" style="margin-bottom:8px;">
+            <label>Minimum settled trades before Kelly trusts the edge estimate</label>
+            <input id="kellyMinTradesInput" type="number" value="50" min="1" step="10">
+          </div>
+        </div>
+        <button class="primary" onclick="applyStakeMode()" style="width:100%; margin-bottom:14px;">Apply stake mode</button>
+        <div id="stakeModeFeedback"></div>
+
+        <div class="eyebrow">Active trading pairs</div>
+        <div class="stat-label" style="font-size:0.75em; margin-bottom:8px;">Unchecked pairs keep being scanned and shadow-tested, just won't fire real trades.</div>
+        <div id="activePairsList" style="display:flex; flex-direction:column; gap:2px; max-height:220px; overflow-y:auto;">—</div>
+        <button class="primary" onclick="applyActiveSymbols()" style="width:100%; margin-top:10px;">Apply active pairs</button>
+        <div id="strategyPairsFeedback"></div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Strategy comparison (live vs shadow)</div>
+        <div class="stat-label" style="font-size:0.75em; margin-bottom:8px;">The live strategy shows its real (or dry-run) record; every other strategy shows what it WOULD have done on the same signals, with no trades actually placed. Rows marked "inverted" are shadow-only hypothesis tests (CALL↔PUT flipped) for strategies whose normal version scored a statistically significant loss — never live, never dry-run-traded for real.</div>
+        <div id="breakevenBanner" style="margin-bottom:10px; padding:8px 12px; border-radius:10px; background:var(--amber-dim); color:var(--amber); font-family:'IBM Plex Mono',monospace; font-size:0.78em;">Breakeven win rate: —</div>
+        <table id="shadowTable" style="width:100%; font-size:0.8em; border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Strategy</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Source</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">W</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">L</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Win rate</th>
+          </tr></thead>
+          <tbody><tr><td colspan="5" class="empty-cell">Building comparison data…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Recent activity</div>
+        <pre class="logs" id="logs">—</pre>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Trade history</div>
+        <table id="tradeTable" style="width:100%; font-size:0.78em; border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Time</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Symbol</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Mode</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Dir</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Conf.</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Status</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">P&L</th>
+          </tr></thead>
+          <tbody><tr><td colspan="7" class="empty-cell">No trades yet — signals will appear here once the engine starts scanning.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Accuracy by confidence level</div>
+        <div class="stat-label" style="font-size:0.75em; margin-bottom:8px;">Win rate for every confidence band your live trades have actually fired at, across the most recent 300 trades — so you can see which level really performs best instead of assuming higher is always better.</div>
+        <div id="bestConfidenceBanner" style="display:none; margin-bottom:10px; padding:10px 12px; border-radius:10px; background:var(--signal-dim); color:var(--signal); font-family:'IBM Plex Mono',monospace; font-size:0.82em;"></div>
+        <table id="confidenceStatsTable" style="width:100%; font-size:0.78em; border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Confidence</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">W</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">L</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Win rate</th>
+          </tr></thead>
+          <tbody><tr><td colspan="4" class="empty-cell">No settled trades yet.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Signal scan (why pairs fire or get filtered)</div>
+        <table id="scanTable" style="width:100%; font-size:0.76em; border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Symbol</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Regime</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Confidence</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Signal</th>
+          </tr></thead>
+          <tbody><tr><td colspan="4" class="empty-cell">Waiting for the first scan…</td></tr></tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Accuracy by symbol</div>
+        <table id="symbolStatsTable" style="width:100%; font-size:0.78em; border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Symbol</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">W</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">L</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Win rate</th>
+          </tr></thead>
+          <tbody><tr><td colspan="4" class="empty-cell">No settled trades yet.</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- MANUAL TRADE -->
+    <div class="page" id="page-trade">
+      <div class="card">
+        <div class="banner" id="liveWarning" style="display:none;">⚠ LIVE mode — this places a real trade with real money.</div>
+
+        <div class="eyebrow">Instrument</div>
+        <div class="field">
+          <label>Pair / symbol</label>
+          <select id="mt_symbol"></select>
+        </div>
+        <div class="field">
+          <label>Contract type</label>
+          <select id="mt_mode">
+            <option value="options">Options — fixed duration</option>
+            <option value="cfd">CFD / Multiplier</option>
+          </select>
+        </div>
+
+        <div class="grid2" id="mt_options_fields">
+          <div class="field"><label>Duration</label><input id="mt_duration" type="number" value="5"></div>
+          <div class="field"><label>Unit</label>
+            <select id="mt_duration_unit">
+              <option value="t">Ticks</option><option value="s">Seconds</option>
+              <option value="m">Minutes</option><option value="h">Hours</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" id="mt_multiplier_field" style="display:none;">
+          <label>Multiplier (CFD)</label><input id="mt_multiplier" type="number" value="100">
+        </div>
+        <div class="field">
+          <label>Stake (USD)</label><input id="mt_stake" type="number" value="1" step="0.01">
+        </div>
+
+        <div class="row" style="margin-top:6px;">
+          <button class="call" onclick="placeManualTrade('CALL')">▲ CALL</button>
+          <button class="put" onclick="placeManualTrade('PUT')">▼ PUT</button>
+        </div>
+        <div id="mt_feedback"></div>
+      </div>
+    </div>
+
+    <!-- BACKTEST -->
+    <div class="page" id="page-backtest">
+      <div class="card">
+        <div class="eyebrow">Configure run</div>
+        <div class="field"><label>Pair / symbol</label><select id="bt_symbol"></select></div>
+        <div class="grid2">
+          <div class="field"><label>Candle size</label>
+            <select id="bt_gran">
+              <option value="60" selected>1m</option><option value="120">2m</option>
+              <option value="300">5m</option><option value="900">15m</option>
+            </select>
+          </div>
+          <div class="field"><label>Strategy</label>
+            <select id="bt_strategy">
+              <option value="confluence" selected>Confluence</option>
+              <option value="adaptive_confluence">Adaptive Confluence (regime-aware)</option>
+              <option value="rsi_sma_scalper">RSI(2)/SMA(3)</option>
+              <option value="ema_cross">EMA cross</option>
+              <option value="stochastic_bb">Stochastic + BB</option>
+            </select>
+          </div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Candles to fetch</label><input id="bt_count" type="number" value="3000"></div>
+          <div class="field"><label>Min confluence</label><input id="bt_conf" type="number" value="3" min="1" max="4"></div>
+        </div>
+        <div class="field">
+          <label>Payout (real Deriv payouts run ~0.80–0.90)</label>
+          <input id="bt_payout" type="number" value="0.85" step="0.01" min="0" max="1">
+        </div>
+        <button class="primary" onclick="runBacktest()" id="btBtn" style="width:100%;">Run backtest</button>
+        <div id="bt_results"></div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Best pairs</div>
+        <div class="stat-label" style="font-size:0.78em; margin-bottom:8px;">Backtests every scanned symbol with the current strategy and ranks by win rate. Uses recent history — not a guarantee of future results.</div>
+        <button class="primary" onclick="rankSymbols()" id="rankBtn" style="width:100%;">Rank pairs</button>
+        <div id="rank_results"></div>
+      </div>
+    </div>
+
+    <!-- VALIDATE (SMC gate check) -->
+    <div class="page" id="page-validate">
+      <div class="card">
+        <div class="eyebrow">SMC gate check</div>
+        <div class="stat-label" style="font-size:0.78em; margin-bottom:10px;">
+          Read-only measurement — does NOT change your live strategy, active pairs, or trading logic.
+          Answers: if the Smart Money Concepts structure gate were wired into Adaptive Confluence today,
+          how often would it fire, and would it reject mostly losing setups or just cut trade count?
+          Uses a fixed-candle lookforward to score win/loss (same simplification as the Backtest tab) —
+          treat results as a screening signal, not the final call. That comes from live shadow-testing
+          once the gate is actually wired in.
+        </div>
+        <div class="field">
+          <label>Symbols to check (blank = current active pairs)</label>
+          <input id="vg_symbols" placeholder="e.g. R_10,R_25,R_50 (blank = active pairs)">
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Candles to fetch</label><input id="vg_count" type="number" value="3000"></div>
+          <div class="field"><label>Lookforward (candles)</label><input id="vg_lookforward" type="number" value="5"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Payout assumption</label><input id="vg_payout" type="number" value="0.85" step="0.01" min="0" max="1"></div>
+          <div class="field"><label>Candle size</label>
+            <select id="vg_gran">
+              <option value="60" selected>1m</option><option value="120">2m</option>
+              <option value="300">5m</option><option value="900">15m</option>
+            </select>
+          </div>
+        </div>
+        <button class="primary" onclick="runGateCheck()" id="vgBtn" style="width:100%;">Run gate check</button>
+        <div id="vg_progress" style="margin-top:10px;"></div>
+      </div>
+      <div class="card" id="vg_results_card" style="display:none;">
+        <div class="eyebrow">Current vs. SMC-gated — per symbol</div>
+        <table id="vgTable" style="width:100%; font-size:0.78em; border-collapse:collapse;">
+          <thead><tr>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Symbol</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Gate pass%</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Cur trades</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Cur win%</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Gated trades</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Gated win%</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Reduction%</th>
+          </tr></thead>
+          <tbody><tr><td colspan="7" class="empty-cell">Run a check above.</td></tr></tbody>
+        </table>
+        <div id="vg_detail" style="margin-top:12px; font-size:0.82em;"></div>
+        <button class="ghost" onclick="downloadRejectedCsv()" id="vgDownloadBtn" style="width:100%; margin-top:12px;">Download rejected-signal CSV</button>
+        <div id="vg_download_note" class="stat-label" style="font-size:0.72em; margin-top:6px;"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="navbar">
+    <button class="navbtn active" data-tab="status" onclick="showTab('status')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h4l2-8 4 16 2-8h4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Status
+    </button>
+    <button class="navbtn" data-tab="trade" onclick="showTab('trade')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 17l6-6-4-4M20 19H10" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Trade
+    </button>
+    <button class="navbtn" data-tab="backtest" onclick="showTab('backtest')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="10" width="4" height="10" rx="1"/><rect x="10" y="4" width="4" height="16" rx="1"/><rect x="17" y="13" width="4" height="7" rx="1"/></svg>
+      Backtest
+    </button>
+    <button class="navbtn" data-tab="validate" onclick="showTab('validate')">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Validate
+    </button>
+  </div>
+
+<script>
+  let apiBase = localStorage.getItem('defender_api_base') || '';
+  document.getElementById('apiBase').value = apiBase;
+
+  // FALLBACK_SYMBOLS: last-resort only, used when apiBase isn't set yet OR
+  // the /api/symbols fetch fails. The normal path now comes from the
+  // backend's symbols.py (single source of truth, see the Stage 1 audit),
+  // via app.py's /api/symbols endpoint - this array is NOT read from that
+  // file automatically, because this is a static HTML/JS file with no
+  // build step, so it can't literally import a Python module. If you add
+  // or change a symbol in symbols.py, update this list to match by hand,
+  // or this fallback will silently drift out of sync again (the exact
+  // problem symbols.py was created to fix for the other two copies).
+  const FALLBACK_SYMBOLS = [
+    {symbol:"R_10", name:"Volatility 10 Index"}, {symbol:"R_25", name:"Volatility 25 Index"},
+    {symbol:"R_50", name:"Volatility 50 Index"}, {symbol:"R_75", name:"Volatility 75 Index"},
+    {symbol:"R_100", name:"Volatility 100 Index"}, {symbol:"1HZ10V", name:"Volatility 10 (1s)"},
+    {symbol:"1HZ25V", name:"Volatility 25 (1s)"}, {symbol:"1HZ50V", name:"Volatility 50 (1s)"},
+    {symbol:"1HZ75V", name:"Volatility 75 (1s)"}, {symbol:"1HZ100V", name:"Volatility 100 (1s)"},
+    {symbol:"BOOM1000", name:"Boom 1000 Index"}, {symbol:"CRASH1000", name:"Crash 1000 Index"},
+    {symbol:"frxEURUSD", name:"EUR/USD"}, {symbol:"frxGBPUSD", name:"GBP/USD"}, {symbol:"frxUSDJPY", name:"USD/JPY"},
+  ];
+
+  // Builds the header's decorative candlestick ticker: one deterministic
+  // sequence, drawn twice back-to-back so the scroll animation loops seamlessly.
+  (function buildCandleTicker() {
+    const seed = [
+      [15,12.5,22.3,16.8,4.2,false],[45,14.6,25.4,15.9,5.9,true],[75,13.9,23.2,15.3,6.5,false],
+      [105,12.0,25.4,13.6,9.6,false],[135,9.4,26.8,13.3,10.6,true],[165,12.0,23.1,17.3,3.4,true],
+      [195,14.1,25.7,16.7,3.9,false],[225,10.4,25.1,14.6,7.7,false],[255,15.4,22.2,16.7,3.5,true],
+      [285,12.8,25.7,15.4,6.4,true],[315,10.9,25.7,15.8,5.4,false],[345,10.9,27.5,14.5,7.6,false],
+      [375,10.0,22.8,15.9,5.3,true],[405,12.2,26.4,13.9,9.1,false],[435,9.1,26.1,13.9,8.3,false],
+      [465,11.2,25.1,15.6,5.5,true],[495,9.9,27.5,15.1,6.6,true],[525,13.0,27.1,14.3,8.3,false],
+      [555,8.0,26.4,13.1,10.9,true],[585,13.2,25.9,14.3,8.3,false],
+    ];
+    let markup = '';
+    [0, 600].forEach(offset => {
+      seed.forEach(([x, wt, wb, bt, bh, up]) => {
+        const cls = up ? 'up' : 'down';
+        markup += `<line class="candle-wick" x1="${x+offset}" y1="${wt}" x2="${x+offset}" y2="${wb}"/>`;
+        markup += `<rect class="candle-body ${cls}" x="${(x+offset-2.6).toFixed(1)}" y="${bt}" width="5.2" height="${bh}" rx="0.8"/>`;
+      });
+    });
+    const track = document.getElementById('candleTrack');
+    if (track) track.innerHTML = markup;
+  })();
+
+  function showTab(name) {
+    document.querySelectorAll('.navbtn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + name));
+  }
+
+  function saveApiBase() {
+    apiBase = document.getElementById('apiBase').value.trim().replace(/\/$/, '');
+    localStorage.setItem('defender_api_base', apiBase);
+    refresh(); loadSymbols();
+  }
+  function api(path) { return apiBase + path; }
+
+  function populateSymbolSelects(symbols) {
+    const html = symbols.map(s => `<option value="${s.symbol}">${s.name} · ${s.symbol}</option>`).join('');
+    document.getElementById('mt_symbol').innerHTML = html;
+    document.getElementById('bt_symbol').innerHTML = html;
+    document.getElementById('mt_symbol').value = 'R_75';
+    document.getElementById('bt_symbol').value = 'R_75';
+  }
+  async function loadSymbols() {
+    if (!apiBase) { populateSymbolSelects(FALLBACK_SYMBOLS); return; }
+    try {
+      const r = await fetch(api('/api/symbols'));
+      const data = await r.json();
+      populateSymbolSelects(data.symbols && data.symbols.length ? data.symbols : FALLBACK_SYMBOLS);
+    } catch (e) { populateSymbolSelects(FALLBACK_SYMBOLS); }
+  }
+  loadSymbols();
+
+  document.getElementById('mt_mode').addEventListener('change', (e) => {
+    const isCfd = e.target.value === 'cfd';
+    document.getElementById('mt_options_fields').style.display = isCfd ? 'none' : 'grid';
+    document.getElementById('mt_multiplier_field').style.display = isCfd ? 'block' : 'none';
+  });
+
+  async function refresh() {
+    if (!apiBase) return;
+    const connEl = document.getElementById('connStatus');
+    const pill = document.getElementById('headerPill');
+    const pillText = document.getElementById('headerPillText');
+    const pulseWrap = document.getElementById('pulseWrap');
+    try {
+      const s = await (await fetch(api('/api/status'))).json();
+      const l = await (await fetch(api('/api/logs'))).json();
+      connEl.textContent = 'Connected'; connEl.style.color = 'var(--signal)';
+      populateStrategyAndPairs(s);
+      refreshShadowComparison();
+
+      const live = !!s.running;
+      pill.className = 'status-pill ' + (live ? 'on' : 'off');
+      pillText.textContent = live ? (s.live_trading ? 'LIVE' : 'DRY RUN') : 'OFFLINE';
+      pulseWrap.className = 'pulse-wrap' + (live ? '' : ' stopped');
+
+      document.getElementById('status').innerHTML = `
+        <div class="stat-row"><span class="stat-label">State</span><span class="stat-value big ${s.live_trading ? 'live' : 'dry'}">${s.status}</span></div>
+        <div class="stat-row"><span class="stat-label">Scanning</span><span class="stat-value" style="font-size:0.75em;">${(s.symbols || [s.symbol]).join(', ')}</span></div>
+        <div class="stat-row"><span class="stat-label">Engines</span><span class="stat-value">${[s.options_enabled && 'OPTIONS', s.cfd_enabled && 'CFD'].filter(Boolean).join(' + ') || 'NONE'}</span></div>
+        <div class="stat-row"><span class="stat-label">Open (opt/cfd)</span><span class="stat-value">${s.open_positions_by_mode ? s.open_positions_by_mode.options + ' / ' + s.open_positions_by_mode.cfd : '0 / 0'}</span></div>
+        <div class="stat-row"><span class="stat-label">Stake</span><span class="stat-value">${s.stake}</span></div>
+        <div class="stat-row"><span class="stat-label">Stake mode</span><span class="stat-value" style="font-size:0.75em;">${s.stake_mode || 'flat'}${s.stake_mode === 'compound_on_win' ? ' (x' + s.compound_factor + ', cap ' + s.compound_max_level + ')' : ''}</span></div>
+        <div class="stat-row"><span class="stat-label">Min confluence</span><span class="stat-value">${s.min_confluence}/4</span></div>
+        <div class="stat-row"><span class="stat-label">Trades</span><span class="stat-value">${s.trade_count}</span></div>
+        <div class="stat-row"><span class="stat-label">Open positions</span><span class="stat-value">${s.open_positions ?? 0}</span></div>
+        <div class="stat-row"><span class="stat-label">Balance</span><span class="stat-value">${s.balance ?? 'n/a'}</span></div>
+        ${s.total_pnl != null ? `
+          <div class="stat-row"><span class="stat-label">Total P&amp;L (real, this session)</span><span class="stat-value" style="color:${s.total_pnl >= 0 ? 'var(--signal)' : 'var(--alarm)'};">${s.total_pnl >= 0 ? '+' : ''}${s.total_pnl} (${s.total_pnl_pct >= 0 ? '+' : ''}${s.total_pnl_pct}%)</span></div>
+        ` : ''}
+        ${s.dry_run_total_pnl != null ? `
+          <div class="stat-row"><span class="stat-label">Dry-run P&amp;L (simulated)</span><span class="stat-value" style="font-size:0.85em; color:var(--slate);">${s.dry_run_total_pnl >= 0 ? '+' : ''}${s.dry_run_total_pnl}</span></div>
+        ` : ''}
+        <div class="stat-row"><span class="stat-label">Max hold</span><span class="stat-value">${s.max_hold_hours ?? '—'}h</span></div>
+        <div class="stat-row"><span class="stat-label">Last signal</span><span class="stat-value" style="font-size:0.72em;">${s.last_signal ? JSON.stringify(s.last_signal) : 'none yet'}</span></div>
+        ${s.streak_halted ? `
+          <div class="stat-row"><span class="stat-label">Loss streak breaker</span><span class="stat-value" style="font-size:0.75em; color:var(--alarm);">HALTED - ${s.consecutive_losses}/${s.max_consecutive_losses} losses in a row, resumes in ~${Math.ceil((s.streak_halt_remaining_sec || 0) / 60)}m</span></div>
+        ` : `
+          <div class="stat-row"><span class="stat-label">Loss streak breaker</span><span class="stat-value" style="font-size:0.75em; color:var(--slate);">${s.consecutive_losses ?? 0}/${s.max_consecutive_losses ?? '-'} losses in a row</span></div>
+        `}
+        ${s.rolling_halted ? `
+          <div class="stat-row"><span class="stat-label">Rolling win-rate filter</span><span class="stat-value" style="font-size:0.75em; color:var(--alarm);">HALTED - last ${s.rolling_sample_count} at ${s.rolling_win_rate != null ? (s.rolling_win_rate * 100).toFixed(0) + '%' : 'n/a'}, needs ≥60% to resume. Won't recover on its own (no new trades while halted) - stuck ${Math.floor((s.rolling_halted_seconds_ago || 0) / 60)}m, auto-clears at ${Math.round((s.rolling_max_halt_sec || 0) / 3600)}h if untouched.</span></div>
+        ` : `
+          <div class="stat-row"><span class="stat-label">Rolling win-rate filter</span><span class="stat-value" style="font-size:0.75em; color:var(--slate);">${s.rolling_win_rate != null ? (s.rolling_win_rate * 100).toFixed(0) + '%' : 'n/a'} over last ${s.rolling_sample_count ?? 0}/${s.rolling_window_size ?? '-'}</span></div>
+        `}
+        ${Object.keys(s.symbols_on_circuit_breaker || {}).length ? `
+          <div class="stat-row"><span class="stat-label">Symbol circuit breakers</span><span class="stat-value" style="font-size:0.68em; color:var(--alarm);">${Object.entries(s.symbols_on_circuit_breaker).map(([k, v]) => `${k} (${Math.ceil(v / 60)}m)`).join(', ')}</span></div>
+        ` : ''}
+        ${s.auto_switch_enabled ? `
+          <div class="stat-row"><span class="stat-label">Auto-switch</span><span class="stat-value" style="font-size:0.75em; color:var(--gold-bright);">ON - min ${s.auto_switch_min_trades} trades, needs decisive 95% CI edge</span></div>
+        ` : ''}
+        ${(s.auto_switch_history || []).length ? `
+          <div class="stat-row"><span class="stat-label">Last auto-switch</span><span class="stat-value" style="font-size:0.68em; color:var(--slate);">${(() => { const h = s.auto_switch_history[s.auto_switch_history.length - 1]; return `${h.from} → ${h.to} (${h.to_win_rate_pct}%) @ ${new Date(h.time).toLocaleTimeString()}`; })()}</span></div>
+        ` : ''}
+        ${s.stake_mode === 'compound_on_win' ? (() => {
+          const levels = Object.entries(s.compound_level_by_symbol_mode || {}).filter(([k, v]) => v > 0);
+          if (!levels.length) return '<div class="stat-row"><span class="stat-label">Active compounding</span><span class="stat-value" style="font-size:0.75em; color:var(--slate);">none right now</span></div>';
+          const parts = levels.map(([k, v]) => `${k} @ L${v}`).join(', ');
+          return `<div class="stat-row"><span class="stat-label">Active compounding</span><span class="stat-value" style="font-size:0.7em; color:var(--gold-bright);">${parts}</span></div>`;
+        })() : ''}
+        ${(() => {
+          const cooling = Object.entries(s.cooling_down || {});
+          if (!cooling.length) return '';
+          const parts = cooling.map(([k, secs]) => `${k} (${Math.ceil(secs / 60)}m)`).join(', ');
+          return `<div class="stat-row"><span class="stat-label">Cooling down (post-loss)</span><span class="stat-value" style="font-size:0.68em; color:var(--alarm);">${parts}</span></div>`;
+        })()}
+      `;
+      document.getElementById('streakHaltRow').style.display = s.streak_halted ? 'block' : 'none';
+      document.getElementById('rollingHaltRow').style.display = s.rolling_halted ? 'block' : 'none';
+      document.getElementById('logs').textContent = l.logs.slice().reverse().join('\n');
+      document.getElementById('liveWarning').style.display = s.live_trading ? 'flex' : 'none';
+
+      const lastSignals = s.last_signals || {};
+      const scanRows = Object.entries(lastSignals).map(([sym, sig]) => {
+        const hasConf = sig.confidence !== undefined && sig.confidence !== null;
+        const confPct = hasConf ? Math.round(sig.confidence * 100) + '%' : '—';
+        const confColor = !hasConf ? 'var(--slate)' : sig.confidence >= 0.5 ? 'var(--signal)' : 'var(--alarm)';
+        const sigLabel = sig.signal
+          ? `<span style="color:${sig.signal === 'CALL' ? 'var(--signal)' : 'var(--alarm)'}; font-weight:600;">${sig.signal}</span>`
+          : '<span style="color:var(--slate);">filtered</span>';
+        const regimeLabel = sig.regime
+          ? `${sig.regime}${sig.direction ? ' · ' + sig.direction : ''}`
+          : '—';
+        return `<tr>
+          <td style="padding:4px;">${sym}</td>
+          <td style="padding:4px;">${regimeLabel}</td>
+          <td style="padding:4px; color:${confColor};">${confPct}</td>
+          <td style="padding:4px;">${sigLabel}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('scanTable').querySelector('tbody').innerHTML =
+        scanRows || '<tr><td colspan="4" class="empty-cell">Waiting for the first scan…</td></tr>';
+
+      const stats = s.symbol_stats || {};
+      const dryStats = s.dry_symbol_stats || {};
+      const allSymbols = Array.from(new Set([...Object.keys(stats), ...Object.keys(dryStats)]));
+      const statRows = allSymbols.map(sym => {
+        const real = stats[sym];
+        const dry = dryStats[sym];
+        if (real && (real.wins || real.losses)) {
+          const total = real.wins + real.losses;
+          return `<tr><td style="padding:4px;">${sym}</td><td style="padding:4px;">${real.wins}</td><td style="padding:4px;">${real.losses}</td><td style="padding:4px;">${((real.wins/total)*100).toFixed(1)}%</td></tr>`;
+        } else if (dry) {
+          const total = dry.wins + dry.losses;
+          const rate = total ? ((dry.wins/total)*100).toFixed(1) + '%' : '–';
+          return `<tr><td style="padding:4px;">${sym} <span style="opacity:0.6;">(dry-run sim)</span></td><td style="padding:4px;">${dry.wins}</td><td style="padding:4px;">${dry.losses}</td><td style="padding:4px;">${rate}</td></tr>`;
+        }
+        return '';
+      }).join('');
+      document.getElementById('symbolStatsTable').querySelector('tbody').innerHTML =
+        statRows || '<tr><td colspan="4" class="empty-cell">No settled trades yet.</td></tr>';
+
+      const th = await (await fetch(api('/api/trade_history?limit=20'))).json();
+      const rows = (th.trades || []).map(t => {
+        const hasConf = t.confidence !== undefined && t.confidence !== null;
+        const confPct = hasConf ? Math.round(t.confidence * 100) + '%' : '—';
+        const confColor = !hasConf ? 'var(--slate)' : t.confidence >= 0.8 ? 'var(--signal)' : t.confidence >= 0.5 ? 'var(--amber)' : 'var(--alarm)';
+        return `
+        <tr>
+          <td style="padding:4px;">${(t.time || '').slice(11, 19)}</td>
+          <td style="padding:4px;">${t.symbol || ''}</td>
+          <td style="padding:4px;">${(t.mode || '').toUpperCase()}</td>
+          <td style="padding:4px;">${t.contract_type || ''}</td>
+          <td style="padding:4px; color:${confColor}; font-weight:600;">${confPct}</td>
+          <td style="padding:4px;">${t.status || ''}</td>
+          <td style="padding:4px;">${t.profit != null ? t.profit : '–'}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('tradeTable').querySelector('tbody').innerHTML =
+        rows || '<tr><td colspan="7" class="empty-cell">No trades yet — signals will appear here once the engine starts scanning.</td></tr>';
+
+      const cs = await (await fetch(api('/api/confidence_stats'))).json();
+      const csBreakeven = cs.breakeven_win_pct;
+      const banner = document.getElementById('bestConfidenceBanner');
+      if (cs.best_bucket) {
+        banner.style.display = 'block';
+        const b = cs.best_bucket;
+        const caveat = cs.used_full_sample_fallback
+          ? ' (small sample — take with caution)' : '';
+        const vsBreakeven = csBreakeven != null
+          ? (b.win_rate_pct >= csBreakeven ? ` — above the ${csBreakeven}% breakeven line ✅` : ` — still below the ${csBreakeven}% breakeven line ⚠️`)
+          : '';
+        banner.textContent = `Best performing so far: ${b.bucket} confidence → ${b.win_rate_pct}% win rate (${b.wins}W/${b.losses}L)${caveat}${vsBreakeven}`;
+      } else {
+        banner.style.display = 'none';
+      }
+      const confRows = (cs.buckets || []).map(b => {
+        const rateColor = b.win_rate_pct == null ? 'var(--slate)'
+          : (csBreakeven != null ? b.win_rate_pct >= csBreakeven : b.win_rate_pct >= 52.5) ? 'var(--signal)' : 'var(--alarm)';
+        const isBest = cs.best_bucket && cs.best_bucket.bucket === b.bucket;
+        return `<tr style="${isBest ? 'background:rgba(61,220,132,0.06);' : ''}">
+          <td style="padding:4px;">${b.bucket}${isBest ? ' ★' : ''}</td>
+          <td style="padding:4px;">${b.wins}</td>
+          <td style="padding:4px;">${b.losses}</td>
+          <td style="padding:4px; color:${rateColor}; font-weight:600;">${b.win_rate_pct != null ? b.win_rate_pct + '%' : '–'}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('confidenceStatsTable').querySelector('tbody').innerHTML =
+        confRows || '<tr><td colspan="4" class="empty-cell">No settled trades yet.</td></tr>';
+
+      const optBtn = document.getElementById('optToggleBtn');
+      const cfdBtn = document.getElementById('cfdToggleBtn');
+      optBtn.textContent = 'Options: ' + (s.options_enabled ? 'ON' : 'OFF');
+      optBtn.style.background = s.options_enabled ? 'var(--signal)' : 'var(--slate-dim)';
+      optBtn.style.color = s.options_enabled ? '#052b17' : 'var(--ice)';
+      cfdBtn.textContent = 'CFD: ' + (s.cfd_enabled ? 'ON' : 'OFF');
+      cfdBtn.style.background = s.cfd_enabled ? 'var(--signal)' : 'var(--slate-dim)';
+      cfdBtn.style.color = s.cfd_enabled ? '#052b17' : 'var(--ice)';
+
+      const arc = document.getElementById('accuracyArc');
+      const needle = document.getElementById('accuracyNeedle');
+      const txt = document.getElementById('accuracyText');
+      const detail = document.getElementById('accuracyDetail');
+      const GAUGE_LEN = Math.PI * 86; // semicircle arc length, radius 86
+      const NEEDLE_LEN = 70, NX = 100, NY = 112;
+      function setNeedle(pct) {
+        const theta = (180 - 1.8 * pct) * Math.PI / 180;
+        needle.setAttribute('x2', (NX + NEEDLE_LEN * Math.cos(theta)).toFixed(2));
+        needle.setAttribute('y2', (NY - NEEDLE_LEN * Math.sin(theta)).toFixed(2));
+      }
+      if (s.accuracy_pct === null || s.accuracy_pct === undefined) {
+        arc.setAttribute('stroke-dashoffset', GAUGE_LEN);
+        setNeedle(0);
+        txt.textContent = '—';
+        detail.textContent = 'No settled trades yet';
+        arc.setAttribute('stroke', 'var(--ledger)');
+      } else {
+        const pct = s.accuracy_pct;
+        arc.setAttribute('stroke-dashoffset', GAUGE_LEN - (GAUGE_LEN * pct / 100));
+        arc.setAttribute('stroke', pct >= 52.5 ? '#2FAE72' : (pct >= 45 ? '#C9A227' : '#E14B3C'));
+        setNeedle(Math.max(0, Math.min(100, pct)));
+        txt.textContent = pct.toFixed(1) + '%';
+        const wins = s.accuracy_win_count ?? s.win_count ?? 0;
+        const losses = s.accuracy_loss_count ?? s.loss_count ?? 0;
+        const settled = s.settled_count || (wins + losses);
+        const sourceLabel = s.accuracy_is_live ? '' : ' (dry-run sim)';
+        detail.textContent = `${wins}W / ${losses}L over ${settled} settled trade${settled === 1 ? '' : 's'}${sourceLabel}`;
+      }
+    } catch (e) {
+      connEl.textContent = 'Not connected'; connEl.style.color = 'var(--alarm)';
+      pill.className = 'status-pill off'; pillText.textContent = 'OFFLINE';
+      pulseWrap.className = 'pulse-wrap stopped';
+    }
+  }
+  refresh();
+  setInterval(refresh, 5000);
+
+  async function startBot() { if (!apiBase) return alert('Connect a backend URL first'); await fetch(api('/api/start'), { method: 'POST' }); refresh(); }
+  async function stopBot() { if (!apiBase) return alert('Connect a backend URL first'); await fetch(api('/api/stop'), { method: 'POST' }); refresh(); }
+  async function resumeStreak() { if (!apiBase) return alert('Connect a backend URL first'); await fetch(api('/api/resume_streak'), { method: 'POST' }); refresh(); }
+  async function resumeRolling() { if (!apiBase) return alert('Connect a backend URL first'); await fetch(api('/api/resume_rolling'), { method: 'POST' }); refresh(); }
+
+  async function toggleMode(which) {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const s = await (await fetch(api('/api/status'))).json();
+    const payload = which === 'options'
+      ? { options_enabled: !s.options_enabled }
+      : { cfd_enabled: !s.cfd_enabled };
+    await fetch(api('/api/toggle_mode'), {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    refresh();
+  }
+
+  const STRATEGY_LABELS = {
+    confluence: 'Confluence',
+    adaptive_confluence: 'Adaptive Confluence (regime-aware)',
+    rsi_sma_scalper: 'RSI(2)/SMA(3)',
+    ema_cross: 'EMA cross',
+    stochastic_bb: 'Stochastic + BB',
+    // Promoted from shadow-only hypotheses after clearing 50k+ combined
+    // shadow trades with a decisive edge over their un-inverted originals -
+    // now real, selectable live strategies like any other above.
+    rsi_sma_scalper_inverted: 'RSI(2)/SMA(3) — inverted',
+    ema_cross_inverted: 'EMA cross — inverted',
+  };
+  let strategyPairsUIBuilt = false;
+
+  function populateStrategyAndPairs(s) {
+    if (strategyPairsUIBuilt) return; // build once so in-progress picks aren't clobbered by the 5s poll
+    const stratSel = document.getElementById('liveStrategySelect');
+    const available = s.available_strategies || Object.keys(STRATEGY_LABELS);
+    stratSel.innerHTML = available.map(name =>
+      `<option value="${name}">${STRATEGY_LABELS[name] || name}</option>`).join('');
+    stratSel.value = s.strategy;
+
+    const durSel = document.getElementById('durationTicksSelect');
+    if (s.duration_ticks) durSel.value = String(s.duration_ticks);
+
+    const fullConfBox = document.getElementById('requireFullConfidence');
+    fullConfBox.checked = !!s.require_full_confidence;
+    document.getElementById('minConfidenceInput').value = s.min_signal_confidence ?? 0.5;
+    updateMinConfidenceFieldState();
+
+    document.getElementById('autoSwitchEnabled').checked = !!s.auto_switch_enabled;
+    document.getElementById('autoSwitchMinTrades').value = s.auto_switch_min_trades ?? 300;
+
+    document.getElementById('stakeModeSelect').value = s.stake_mode || 'flat';
+    document.getElementById('kellyFractionInput').value = s.kelly_fraction ?? 0.25;
+    document.getElementById('kellyMaxStakePctInput').value = s.kelly_max_stake_pct != null ? (s.kelly_max_stake_pct * 100) : 2;
+    document.getElementById('kellyMinTradesInput').value = s.kelly_min_trades ?? 50;
+    updateKellyFieldsState();
+
+    const pairsList = document.getElementById('activePairsList');
+    const allSymbols = s.symbols || [];
+    const active = new Set(s.active_symbols || allSymbols);
+    pairsList.innerHTML = allSymbols.map(sym => `
+      <label style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:0.85em;">
+        <input type="checkbox" class="pair-checkbox" value="${sym}" ${active.has(sym) ? 'checked' : ''}>
+        ${sym}
+      </label>`).join('');
+
+    strategyPairsUIBuilt = true;
+  }
+
+  function updateMinConfidenceFieldState() {
+    const on = document.getElementById('requireFullConfidence').checked;
+    const field = document.getElementById('minConfidenceField');
+    field.style.opacity = on ? '0.4' : '1';
+    document.getElementById('minConfidenceInput').disabled = on;
+  }
+  document.getElementById('requireFullConfidence').addEventListener('change', updateMinConfidenceFieldState);
+
+  async function applyConfidenceMode() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const feedback = document.getElementById('confidenceFeedback');
+    const require_full_confidence = document.getElementById('requireFullConfidence').checked;
+    const min_signal_confidence = parseFloat(document.getElementById('minConfidenceInput').value);
+    try {
+      const r = await fetch(api('/api/set_confidence_mode'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ require_full_confidence, min_signal_confidence }),
+      });
+      const data = await r.json();
+      feedback.innerHTML = data.ok
+        ? `<div class="feedback ok">${require_full_confidence ? 'Now firing only at 100% confidence.' : 'Strictness updated — min confidence ' + (data.min_signal_confidence * 100).toFixed(0) + '%.'}</div>`
+        : `<div class="feedback bad">${data.error || 'Failed to update strictness.'}</div>`;
+    } catch (e) { feedback.innerHTML = `<div class="feedback bad">Request failed: ${e}</div>`; }
+  }
+
+  async function applyAutoSwitch() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const feedback = document.getElementById('autoSwitchFeedback');
+    const enabled = document.getElementById('autoSwitchEnabled').checked;
+    const min_trades = parseInt(document.getElementById('autoSwitchMinTrades').value, 10);
+    try {
+      const r = await fetch(api('/api/set_auto_switch'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled, min_trades }),
+      });
+      const data = await r.json();
+      feedback.innerHTML = data.ok
+        ? `<div class="feedback ok">Auto-switch ${data.auto_switch_enabled ? 'enabled' : 'disabled'} - min ${data.auto_switch_min_trades} trades required.</div>`
+        : `<div class="feedback bad">${data.error || 'Failed to update auto-switch settings.'}</div>`;
+    } catch (e) { feedback.innerHTML = `<div class="feedback bad">Request failed: ${e}</div>`; }
+  }
+
+  function updateKellyFieldsState() {
+    const isKelly = document.getElementById('stakeModeSelect').value === 'kelly';
+    document.getElementById('kellyFields').style.opacity = isKelly ? '1' : '0.4';
+    ['kellyFractionInput', 'kellyMaxStakePctInput', 'kellyMinTradesInput'].forEach(id => {
+      document.getElementById(id).disabled = !isKelly;
+    });
+  }
+  document.getElementById('stakeModeSelect').addEventListener('change', updateKellyFieldsState);
+
+  async function applyStakeMode() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const feedback = document.getElementById('stakeModeFeedback');
+    const mode = document.getElementById('stakeModeSelect').value;
+    const kelly_fraction = parseFloat(document.getElementById('kellyFractionInput').value);
+    const kelly_max_stake_pct = parseFloat(document.getElementById('kellyMaxStakePctInput').value) / 100;
+    const kelly_min_trades = parseInt(document.getElementById('kellyMinTradesInput').value, 10);
+    try {
+      const r = await fetch(api('/api/set_stake_mode'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, kelly_fraction, kelly_max_stake_pct, kelly_min_trades }),
+      });
+      const data = await r.json();
+      feedback.innerHTML = data.ok
+        ? `<div class="feedback ok">Stake mode set to ${data.stake_mode}.</div>`
+        : `<div class="feedback bad">${data.error || 'Failed to update stake mode.'}</div>`;
+    } catch (e) { feedback.innerHTML = `<div class="feedback bad">Request failed: ${e}</div>`; }
+  }
+
+  async function applyDurationTicks() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const feedback = document.getElementById('durationTicksFeedback');
+    const ticks = parseInt(document.getElementById('durationTicksSelect').value, 10);
+    try {
+      const r = await fetch(api('/api/set_duration'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ticks }),
+      });
+      const data = await r.json();
+      feedback.innerHTML = data.ok
+        ? `<div class="feedback ok">Tick duration set to ${data.duration_ticks} tick(s) for every strategy. Applies to trades opened from now on.</div>`
+        : `<div class="feedback bad">${data.error || 'Failed to update tick duration.'}</div>`;
+    } catch (e) { feedback.innerHTML = `<div class="feedback bad">Request failed: ${e}</div>`; }
+  }
+
+  async function applyStrategy() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const feedback = document.getElementById('strategyPairsFeedback');
+    const strategy = document.getElementById('liveStrategySelect').value;
+    try {
+      const r = await fetch(api('/api/set_strategy'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ strategy }),
+      });
+      const data = await r.json();
+      feedback.innerHTML = data.ok
+        ? `<div class="feedback ok">Live strategy set to ${STRATEGY_LABELS[data.strategy] || data.strategy}.</div>`
+        : `<div class="feedback bad">${data.error || 'Failed to switch strategy.'}</div>`;
+    } catch (e) { feedback.innerHTML = `<div class="feedback bad">Request failed: ${e}</div>`; }
+  }
+
+  async function applyActiveSymbols() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const feedback = document.getElementById('strategyPairsFeedback');
+    const checked = Array.from(document.querySelectorAll('.pair-checkbox:checked')).map(el => el.value);
+    try {
+      const r = await fetch(api('/api/set_active_symbols'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ symbols: checked }),
+      });
+      const data = await r.json();
+      feedback.innerHTML = data.ok
+        ? `<div class="feedback ok">Active pairs updated: ${data.active_symbols.join(', ') || 'none'}.</div>`
+        : `<div class="feedback bad">${data.error || 'Failed to update active pairs.'}</div>`;
+    } catch (e) { feedback.innerHTML = `<div class="feedback bad">Request failed: ${e}</div>`; }
+  }
+
+  async function refreshShadowComparison() {
+    try {
+      const data = await (await fetch(api('/api/shadow_comparison'))).json();
+      const breakeven = data.breakeven_win_pct;
+      const banner = document.getElementById('breakevenBanner');
+      if (breakeven != null) {
+        banner.textContent = `Breakeven win rate at ${Math.round(data.assumed_payout_pct * 100)}% payout: ${breakeven}% — a strategy has to clear THIS line to make money, not just 50%.`;
+      }
+      const rows = (data.rows || []).map(row => {
+        const rate = row.win_rate_pct === null ? '—' : row.win_rate_pct.toFixed(1) + '%';
+        const rateColor = row.win_rate_pct === null ? 'var(--slate)'
+          : (breakeven != null ? row.win_rate_pct >= breakeven : row.win_rate_pct >= 54) ? 'var(--signal)' : 'var(--alarm)';
+        const nameLabel = STRATEGY_LABELS[row.strategy] || row.strategy;
+        const liveTag = row.is_live ? ' <span style="color:var(--gold-bright); font-weight:600;">(LIVE)</span>' : '';
+        const rowStyle = row.is_inverted_hypothesis ? 'font-style:italic; opacity:0.85;' : '';
+        return `<tr style="${rowStyle}">
+          <td style="padding:4px;">${nameLabel}${liveTag}</td>
+          <td style="padding:4px; color:var(--slate);">${row.source}</td>
+          <td style="padding:4px;">${row.wins}</td>
+          <td style="padding:4px;">${row.losses}</td>
+          <td style="padding:4px; color:${rateColor};">${rate}</td>
+        </tr>`;
+      }).join('');
+      document.getElementById('shadowTable').querySelector('tbody').innerHTML =
+        rows || '<tr><td colspan="5" class="empty-cell">Building comparison data…</td></tr>';
+    } catch (e) { /* leave existing table content on failure */ }
+  }
+
+  async function placeManualTrade(direction) {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const feedback = document.getElementById('mt_feedback');
+    feedback.innerHTML = '';
+    const payload = {
+      contract_type: direction,
+      symbol: document.getElementById('mt_symbol').value,
+      stake: parseFloat(document.getElementById('mt_stake').value),
+      trade_mode: document.getElementById('mt_mode').value,
+      duration: parseInt(document.getElementById('mt_duration').value),
+      duration_unit: document.getElementById('mt_duration_unit').value,
+      multiplier: parseFloat(document.getElementById('mt_multiplier').value),
+    };
+    try {
+      const r = await fetch(api('/api/manual_trade'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+      feedback.innerHTML = data.ok
+        ? `<div class="feedback ok">${data.dry_run ? 'Dry run logged — check Status tab.' : 'Trade sent.'}</div>`
+        : `<div class="feedback bad">${data.error || 'Trade failed.'}</div>`;
+    } catch (e) { feedback.innerHTML = `<div class="feedback bad">Request failed: ${e}</div>`; }
+  }
+
+  function drawEquityCurve(curve) {
+    if (!curve || curve.length < 2) return '';
+    const w = 600, h = 130, pad = 6;
+    const min = Math.min(...curve), max = Math.max(...curve);
+    const range = (max - min) || 1;
+    const pts = curve.map((v, i) => {
+      const x = pad + (i / (curve.length - 1)) * (w - 2 * pad);
+      const y = h - pad - ((v - min) / range) * (h - 2 * pad);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    const up = curve[curve.length - 1] >= curve[0];
+    const color = up ? '#3DDC84' : '#FF5D5D';
+    return `<svg class="equity" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+      <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2"/>
+    </svg>`;
+  }
+
+  async function runBacktest() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const btn = document.getElementById('btBtn');
+    const out = document.getElementById('bt_results');
+    btn.disabled = true; btn.textContent = 'Running…'; out.innerHTML = '';
+    try {
+      const params = new URLSearchParams({
+        symbol: document.getElementById('bt_symbol').value,
+        granularity: document.getElementById('bt_gran').value,
+        strategy: document.getElementById('bt_strategy').value,
+        count: document.getElementById('bt_count').value,
+        min_confluence: document.getElementById('bt_conf').value,
+        payout: document.getElementById('bt_payout').value,
+      });
+      const r = await fetch(api('/api/backtest?' + params.toString()));
+      const data = await r.json();
+      if (data.error) { out.innerHTML = `<div class="feedback bad">${data.error}</div>`; return; }
+      out.innerHTML = `
+        <table>
+          <tr><td>Total trades</td><td>${data.total_trades}</td></tr>
+          <tr><td>Win rate</td><td>${data.win_rate_pct}%</td></tr>
+          <tr><td>Wins / Losses</td><td>${data.wins} / ${data.losses}</td></tr>
+          <tr><td>Net P&L</td><td>${data.net_pnl}</td></tr>
+          <tr><td>Max drawdown</td><td>${data.max_drawdown}</td></tr>
+        </table>
+        ${drawEquityCurve(data.equity_curve)}
+      `;
+    } catch (e) { out.innerHTML = `<div class="feedback bad">Failed: ${e}</div>`; }
+    finally { btn.disabled = false; btn.textContent = 'Run backtest'; }
+  }
+
+  async function rankSymbols() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const btn = document.getElementById('rankBtn');
+    const out = document.getElementById('rank_results');
+    btn.disabled = true; btn.textContent = 'Ranking… (1-2 min for all pairs)'; out.innerHTML = '';
+    try {
+      const payout = document.getElementById('bt_payout').value;
+      const r = await fetch(api('/api/rank_symbols?payout=' + encodeURIComponent(payout)));
+      const data = await r.json();
+      let rows = (data.ranked || []).map(x => `
+        <tr>
+          <td style="padding:4px;">${x.symbol}</td>
+          <td style="padding:4px;">${x.win_rate_pct}%</td>
+          <td style="padding:4px;">${x.total_trades}</td>
+          <td style="padding:4px;">${x.net_pnl}</td>
+          <td style="padding:4px;">${x.enough_sample ? '' : '⚠️'}</td>
+        </tr>`).join('');
+      if (!rows) rows = '<tr><td colspan="5" class="empty-cell">No results for this range yet.</td></tr>';
+      out.innerHTML = `
+        <table style="width:100%; font-size:0.8em; border-collapse:collapse; margin-top:8px;">
+          <thead><tr>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Symbol</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Win rate</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Trades</th>
+            <th style="text-align:left; padding:4px; color:var(--slate);">Net P&L</th>
+            <th style="padding:4px;"></th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        <div class="stat-label" style="margin-top:6px; font-size:0.72em;">⚠️ = fewer than 10 backtested trades, treat with caution.</div>
+      `;
+    } catch (e) { out.innerHTML = `<div class="feedback bad">Failed: ${e}</div>`; }
+    finally { btn.disabled = false; btn.textContent = 'Rank pairs'; }
+  }
+
+  document.getElementById('mt_options_fields').style.display = 'grid';
+
+  // ---------------- SMC gate check (Validate tab) ----------------
+  let vgPolling = false;
+
+  async function runGateCheck() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const btn = document.getElementById('vgBtn');
+    const progress = document.getElementById('vg_progress');
+    document.getElementById('vg_results_card').style.display = 'none';
+    const symbolsRaw = document.getElementById('vg_symbols').value.trim();
+    const payload = {
+      granularity: parseInt(document.getElementById('vg_gran').value, 10),
+      count: parseInt(document.getElementById('vg_count').value, 10),
+      lookforward: parseInt(document.getElementById('vg_lookforward').value, 10),
+      payout: parseFloat(document.getElementById('vg_payout').value),
+    };
+    if (symbolsRaw) payload.symbols = symbolsRaw.split(',').map(s => s.trim()).filter(Boolean);
+
+    btn.disabled = true; btn.textContent = 'Starting…';
+    progress.innerHTML = '';
+    try {
+      const r = await fetch(api('/api/smc_gate_check/start'), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      });
+      const data = await r.json();
+      if (!data.ok) {
+        progress.innerHTML = `<div class="feedback bad">${data.error || 'Failed to start.'}</div>`;
+        btn.disabled = false; btn.textContent = 'Run gate check';
+        return;
+      }
+      pollGateCheck();
+    } catch (e) {
+      progress.innerHTML = `<div class="feedback bad">Request failed: ${e}</div>`;
+      btn.disabled = false; btn.textContent = 'Run gate check';
+    }
+  }
+
+  async function pollGateCheck() {
+    if (vgPolling) return;
+    vgPolling = true;
+    const btn = document.getElementById('vgBtn');
+    const progress = document.getElementById('vg_progress');
+    btn.disabled = true;
+    try {
+      while (true) {
+        const r = await fetch(api('/api/smc_gate_check/status'));
+        const s = await r.json();
+        if (s.status === 'running') {
+          const done = s.progress.completed_symbols.length;
+          const total = s.progress.total_symbols;
+          const cur = s.progress.current_symbol || '…';
+          btn.textContent = `Running… (${done}/${total})`;
+          progress.innerHTML = `<div class="stat-label" style="font-size:0.8em;">Checking ${cur}… ${done}/${total} symbols done. This can take a few minutes for the full symbol list.</div>`;
+        } else if (s.status === 'done') {
+          btn.disabled = false; btn.textContent = 'Run gate check';
+          progress.innerHTML = `<div class="feedback ok">Done — ${s.summaries.length} symbol(s) analyzed.</div>`;
+          renderGateResults(s.summaries);
+          break;
+        } else if (s.status === 'error') {
+          btn.disabled = false; btn.textContent = 'Run gate check';
+          progress.innerHTML = `<div class="feedback bad">${s.error || 'Analysis failed.'}</div>`;
+          break;
+        } else {
+          break; // idle - nothing to poll
+        }
+        await new Promise(res => setTimeout(res, 2000));
+      }
+    } finally {
+      vgPolling = false;
+    }
+  }
+
+  function renderGateResults(summaries) {
+    const card = document.getElementById('vg_results_card');
+    card.style.display = 'block';
+    const rows = summaries.map(s => {
+      const cur = s.comparison.current_strategy;
+      const gated = s.comparison.smc_gated_strategy;
+      return `<tr>
+        <td style="padding:4px;">${s.symbol}</td>
+        <td style="padding:4px;">${s.smc_gate_pass_rate_on_real_signals_pct ?? '–'}%</td>
+        <td style="padding:4px;">${cur.trades}</td>
+        <td style="padding:4px;">${cur.win_rate_pct ?? '–'}%</td>
+        <td style="padding:4px;">${gated.trades}</td>
+        <td style="padding:4px;">${gated.win_rate_pct ?? '–'}%</td>
+        <td style="padding:4px;">${s.trade_reduction_pct ?? '–'}%</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('vgTable').querySelector('tbody').innerHTML =
+      rows || '<tr><td colspan="7" class="empty-cell">No results.</td></tr>';
+
+    const detail = summaries.map(s => {
+      const cur = s.comparison.current_strategy;
+      const gated = s.comparison.smc_gated_strategy;
+      return `<div style="margin-bottom:10px; padding-bottom:10px; border-bottom:1px solid var(--ledger);">
+        <div style="font-weight:600; margin-bottom:4px;">${s.symbol}</div>
+        <div class="stat-label" style="font-size:0.78em;">
+          Current: ${cur.trades} trades, ${cur.win_rate_pct ?? '–'}% win, profit factor ${cur.profit_factor ?? '–'}, longest losing streak ${cur.longest_losing_streak}<br>
+          SMC-gated: ${gated.trades} trades, ${gated.win_rate_pct ?? '–'}% win, profit factor ${gated.profit_factor ?? '–'}, longest losing streak ${gated.longest_losing_streak}
+        </div>
+      </div>`;
+    }).join('');
+    document.getElementById('vg_detail').innerHTML = detail;
+
+    document.getElementById('vg_download_note').textContent =
+      'CSV includes up to the most recent 500 rejected signals across this run. For a complete export, run smc_sample_rate_check.py directly.';
+  }
+
+  async function downloadRejectedCsv() {
+    if (!apiBase) return alert('Connect a backend URL first');
+    const btn = document.getElementById('vgDownloadBtn');
+    btn.disabled = true; btn.textContent = 'Preparing…';
+    try {
+      const r = await fetch(api('/api/smc_gate_check/rejected_signals'));
+      const data = await r.json();
+      const rows = data.rows || [];
+      if (!rows.length) { alert('No rejected-signal data yet — run a gate check first.'); return; }
+      const headers = Object.keys(rows[0]);
+      const csvLines = [headers.join(',')];
+      for (const row of rows) {
+        csvLines.push(headers.map(h => JSON.stringify(row[h] ?? '')).join(','));
+      }
+      const blob = new Blob([csvLines.join('\n')], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'rejected_signals.csv';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Download failed: ' + e);
+    } finally {
+      btn.disabled = false; btn.textContent = 'Download rejected-signal CSV';
+    }
+  }
+
+  // Resume polling on load in case a check was already running server-side
+  // (e.g. page was refreshed mid-run) and the Validate tab gets opened.
+  (async function checkGateStatusOnLoad() {
+    if (!apiBase) return;
+    try {
+      const r = await fetch(api('/api/smc_gate_check/status'));
+      const s = await r.json();
+      if (s.status === 'running') pollGateCheck();
+      else if (s.status === 'done' && s.summaries && s.summaries.length) renderGateResults(s.summaries);
+    } catch (e) { /* backend not reachable yet - ignore */ }
+  })();
+
+  // PWA install: registers the shell-only service worker (see sw.js - it
+  // never caches API responses, only the static app files) so the browser
+  // offers "Add to Home Screen" / "Install app" and the dashboard opens
+  // full-screen like a native app.
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(err => {
+        console.warn('Service worker registration failed (install-as-app may not be available):', err);
+      });
+    });
+  }
+</script>
+</body>
+</html>
